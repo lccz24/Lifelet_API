@@ -129,3 +129,88 @@ app.get("/health", async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`API rodando na porta ${PORT}`));
+
+
+// POST CONECTAR RESPONSAVEL E USUARIO
+
+app.post("/conectar", async (req, res) => {
+  try {
+    const { id_usuario, id_responsavel } = req.body;
+
+    if (!id_usuario || !id_responsavel) {
+      return res.status(400).send({ ok: false, msg: "IDs são obrigatórios." });
+    }
+
+    // Verificar se ambos existem
+    const [u] = await pool.execute("SELECT * FROM usuario WHERE UserID = ?", [id_usuario]);
+    const [r] = await pool.execute("SELECT * FROM usuario WHERE UserID = ?", [id_responsavel]);
+
+    if (!u.length || !r.length) {
+      return res.status(404).send({ ok: false, msg: "Usuário ou responsável não encontrado." });
+    }
+
+    // Verificar função
+    if (u[0].Funcao != 1) {
+      return res.status(400).send({ ok: false, msg: "Este ID não pertence a um usuário comum." });
+    }
+    if (r[0].Funcao != 2) {
+      return res.status(400).send({ ok: false, msg: "Este ID não pertence a um responsável." });
+    }
+
+    // Criar vínculo
+    await pool.execute(
+      "INSERT INTO conexao (id_usuario, id_responsavel) VALUES (?, ?)",
+      [id_usuario, id_responsavel]
+    );
+
+    res.send({ ok: true, msg: "Responsável conectado com sucesso!" });
+
+  } catch (err) {
+    console.error("Erro em /conectar:", err);
+    res.status(500).send({ ok: false, msg: "Erro no servidor." });
+  }
+});
+
+// GET BUSCA RESPONSAVEIS DE UM USUARIO
+
+app.get("/usuario/:id/responsaveis", async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const [rows] = await pool.execute(
+      `SELECT r.UserID, r.NomeCompleto, r.Email, r.Telefone
+       FROM conexao c
+       JOIN usuario r ON r.UserID = c.id_responsavel
+       WHERE c.id_usuario = ?`,
+       [userId]
+    );
+
+    res.send(rows);
+
+  } catch (err) {
+    console.error("Erro em /usuario/responsaveis:", err);
+    res.status(500).send({ ok: false, msg: "Erro no servidor." });
+  }
+});
+
+// GET BUSCA USUARIOS DE UM RESPONSAVEL
+
+app.get("/responsavel/:id/usuarios", async (req, res) => {
+  try {
+    const respId = req.params.id;
+
+    const [rows] = await pool.execute(
+      `SELECT u.UserID, u.NomeCompleto, u.Email, u.Telefone
+       FROM conexao c
+       JOIN usuario u ON u.UserID = c.id_usuario
+       WHERE c.id_responsavel = ?`,
+      [respId]
+    );
+
+    res.send(rows);
+
+  } catch (err) {
+    console.error("Erro em /responsavel/usuarios:", err);
+    res.status(500).send({ ok: false, msg: "Erro no servidor." });
+  }
+});
