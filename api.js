@@ -214,3 +214,51 @@ app.get("/responsavel/:id/usuarios", async (req, res) => {
     res.status(500).send({ ok: false, msg: "Erro no servidor." });
   }
 });
+
+// Rota para buscar usuário por email
+app.get("/buscar-usuario", async (req, res) => {
+  try {
+    const { email } = req.query;
+
+    if (!email) {
+      return res.status(400).send({ ok: false, msg: "Email é obrigatório." });
+    }
+
+    const [rows] = await pool.execute(
+      "SELECT UserID, NomeCompleto, Email, Funcao FROM usuario WHERE Email = ?",
+      [email]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).send({ ok: false, msg: "Usuário não encontrado." });
+    }
+
+    res.send({ ok: true, user: rows[0] });
+
+  } catch (err) {
+    console.error("Erro em /buscar-usuario:", err);
+    res.status(500).send({ ok: false, msg: "Erro no servidor." });
+  }
+});
+
+// Rota para remover conexão
+app.delete("/conectar", async (req, res) => {
+  try {
+    const { id_usuario, id_responsavel } = req.body;
+
+    if (!id_usuario || !id_responsavel) {
+      return res.status(400).send({ ok: false, msg: "IDs são obrigatórios." });
+    }
+
+    await pool.execute(
+      "DELETE FROM conexao WHERE id_usuario = ? AND id_responsavel = ?",
+      [id_usuario, id_responsavel]
+    );
+
+    res.send({ ok: true, msg: "Conexão removida com sucesso!" });
+
+  } catch (err) {
+    console.error("Erro em DELETE /conectar:", err);
+    res.status(500).send({ ok: false, msg: "Erro no servidor." });
+  }
+});
