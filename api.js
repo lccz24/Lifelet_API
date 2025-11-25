@@ -79,7 +79,7 @@ app.post("/cadastro", async (req, res) => {
   }
 });
 
-// Rota de login
+// Rota de login - 👇 VERSÃO CORRIGIDA PARA RETORNAR MAIS DADOS
 app.post("/login", async (req, res) => {
   try {
     console.log("Recebida requisição de login:", req.body);
@@ -103,11 +103,15 @@ app.post("/login", async (req, res) => {
       return res.status(401).send({ ok: false, msg: "Senha inválida." });
     }
 
+    // 👇 AGORA RETORNA TODOS OS DADOS NECESSÁRIOS
     res.send({
       ok: true,
       msg: "Login bem-sucedido.",
       userId: user.UserID,
       funcao: user.Funcao,
+      userName: user.UserName,        // 👈 ADICIONADO
+      userEmail: user.Email,          // 👈 ADICIONADO  
+      nomeCompleto: user.NomeCompleto // 👈 ADICIONADO
     });
 
   } catch (err) {
