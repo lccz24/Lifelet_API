@@ -266,3 +266,95 @@ app.delete("/conectar", async (req, res) => {
     res.status(500).send({ ok: false, msg: "Erro no servidor." });
   }
 });
+
+// Rota para obter dados médios de batimentos do usuário
+app.get("/usuario/:id/batimentos-media", async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { data } = req.query; // data no formato YYYY-MM-DD (opcional)
+
+    let query = `
+      SELECT BatimentoMedio, BatimentoMinimo, BatimentoMaximo, Dat 
+      FROM batimentosmedia 
+      WHERE UserID = ?
+    `;
+    let params = [userId];
+
+    if (data) {
+      query += " AND Dat = ?";
+      params.push(data);
+    } else {
+      // Se não especificar data, pega a mais recente
+      query += " ORDER BY Dat DESC LIMIT 1";
+    }
+
+    const [rows] = await pool.execute(query, params);
+
+    if (rows.length === 0) {
+      return res.status(404).send({ ok: false, msg: "Dados não encontrados." });
+    }
+
+    res.send({ ok: true, dados: rows[0] });
+
+  } catch (err) {
+    console.error("Erro em /usuario/:id/batimentos-media:", err);
+    res.status(500).send({ ok: false, msg: "Erro no servidor." });
+  }
+});
+
+// Rota para obter histórico de batimentos do dia (para gráfico)
+app.get("/usuario/:id/batimentos-dia", async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { data } = req.query;
+
+    let query = `
+      SELECT Batimentos, DataHora 
+      FROM batimentosdia 
+      WHERE UserID = ?
+    `;
+    let params = [userId];
+
+    if (data) {
+      query += " AND DATE(DataHora) = ?";
+      params.push(data);
+    } else {
+      // Se não especificar data, pega o dia atual
+      const hoje = new Date().toISOString().split('T')[0];
+      query += " AND DATE(DataHora) = ?";
+      params.push(hoje);
+    }
+
+    query += " ORDER BY DataHora";
+
+    const [rows] = await pool.execute(query, params);
+
+    res.send({ ok: true, dados: rows });
+
+  } catch (err) {
+    console.error("Erro em /usuario/:id/batimentos-dia:", err);
+    res.status(500).send({ ok: false, msg: "Erro no servidor." });
+  }
+});
+
+// Rota para obter histórico de médias (últimos 7 dias)
+app.get("/usuario/:id/historico-media", async (req, res) => {
+  try {
+    const userId = req.params.id;
+
+    const [rows] = await pool.execute(
+      `SELECT BatimentoMedio, BatimentoMinimo, BatimentoMaximo, Dat
+       FROM batimentosmedia 
+       WHERE UserID = ? 
+       ORDER BY Dat DESC 
+       LIMIT 7`,
+      [userId]
+    );
+
+    res.send({ ok: true, dados: rows });
+
+  } catch (err) {
+    console.error("Erro em /usuario/:id/historico-media:", err);
+    res.status(500).send({ ok: false, msg: "Erro no servidor." });
+  }
+});
