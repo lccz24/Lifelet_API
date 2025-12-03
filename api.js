@@ -358,3 +358,59 @@ app.get("/usuario/:id/historico-media", async (req, res) => {
     res.status(500).send({ ok: false, msg: "Erro no servidor." });
   }
 });
+
+// Rota para salvar batimento em tempo real
+app.post("/salvar-batimento", async (req, res) => {
+  try {
+    const { userId, batimento } = req.body;
+
+    if (!userId || !batimento) {
+      return res.status(400).send({ ok: false, msg: "Dados incompletos." });
+    }
+
+    console.log(`💓 Salvando batimento: Usuário ${userId}, BPM: ${batimento}`);
+
+    // 1. Salvar no histórico (tabela batimentosdia)
+    await pool.execute(
+      "INSERT INTO batimentosdia (Batimentos, DataHora, UserID) VALUES (?, NOW(), ?)",
+      [batimento, userId]
+    );
+
+    console.log(`✅ Batimento salvo no histórico`);
+
+    // 2. Atualizar ou criar média do dia (tabela batimentosmedia)
+    const hoje = new Date().toISOString().split('T')[0];
+    
+    // Verificar se já existe registro hoje
+    const [existe] = await pool.execute(
+      "SELECT * FROM batimentosmedia WHERE UserID = ? AND Dat = ?",
+      [userId, hoje]
+    );
+
+    if (existe.length > 0) {
+      // Atualizar média existente
+      const [atualizacao] = await pool.execute(
+        `UPDATE batimentosmedia 
+         SET BatimentoMedio = (BatimentoMedio + ?) / 2,
+             BatimentoMinimo = LEAST(BatimentoMinimo, ?),
+             BatimentoMaximo = GREATEST(BatimentoMaximo, ?)
+         WHERE UserID = ? AND Dat = ?`,
+        [batimento, batimento, batimento, userId, hoje]
+      );
+      console.log(`📊 Média atualizada`);
+    } else {
+      // Criar nova média
+      await pool.execute(
+        "INSERT INTO batimentosmedia (BatimentoMedio, BatimentoMinimo, BatimentoMaximo, Periodicidade, Dat, UserID) VALUES (?, ?, ?, 1, ?, ?)",
+        [batimento, batimento, batimento, hoje, userId]
+      );
+      console.log(`📊 Nova média criada`);
+    }
+
+    res.send({ ok: true, msg: "Batimento salvo com sucesso!" });
+
+  } catch (err) {
+    console.error("Erro em /salvar-batimento:", err);
+    res.status(500).send({ ok: false, msg: "Erro no servidor." });
+  }
+});
